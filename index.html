@@ -1,0 +1,147 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title></title>
+    <style type="text/css">
+        html,
+        body {
+            height:100%;
+            margin:0;
+            padding:0;
+        }
+
+        #container {
+            height:100%;
+            width:100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-alpha1/jquery.min.js"></script>
+    <script src="https://autobahn.s3.amazonaws.com/autobahnjs/latest/autobahn.min.jgz"></script>
+    <script src="http://code.highcharts.com/highcharts.js"></script>
+    <script type="text/javascript">
+        var d = new Date();
+        var point = {
+            last: [d.getTime(), 0],
+            low: [d.getTime(), 0],
+            high: [d.getTime(), 0]
+        };
+
+        console.log(point);
+
+        function requestData() {
+            var d = new Date();
+            var series = chart.series[0],
+                shift = series.data.length > 20; // shift if the series is
+
+            point.last[0] = d.getTime();
+            point.low[0] = d.getTime();
+            point.high[0] = d.getTime();
+                                                 // longer than 20
+            // add the point
+            chart.series[0].addPoint(point.last, true, shift);
+            chart.series[1].addPoint(point.low, true, shift);
+            chart.series[2].addPoint(point.high, true, shift);
+
+            // call it again after three second
+            setTimeout(requestData, 5000);
+        }
+
+        $(document).ready(function() {
+            var lastValueSaved = 0;
+
+            var wsuri = "wss://api.poloniex.com";
+            var connection = new autobahn.Connection({
+                url: wsuri,
+                realm: "realm1"
+            });
+
+            connection.onopen = function (session) {
+                function tickerEvent (args,kwargs) {
+                    var pair = args[0];
+
+                    if (pair === 'BTC_ETH') {
+                        var lastValue = parseFloat(args[1]);
+                        var lowValue = parseFloat(args[2]);
+                        var highValue = parseFloat(args[3]);
+                        var date = new Date();
+
+                        console.log(args);
+                        console.log(point);
+
+                        point.last = [];
+                        point.last.push(date.getTime());
+                        point.last.push(lastValue);
+
+                        point.low = [];
+                        point.low.push(date.getTime());
+                        point.low.push(lowValue);
+
+                        point.high = [];
+                        point.high.push(date.getTime());
+                        point.high.push(highValue);
+                    }
+                }
+
+                session.subscribe('ticker', tickerEvent);
+            }
+
+            connection.onclose = function () {
+              console.log("Websocket connection closed");
+            }
+
+            connection.open();
+
+            chart = new Highcharts.Chart({
+                chart: {
+                    renderTo: 'container',
+                    defaultSeriesType: 'spline',
+                    events: {
+                        load: function() {
+                            chart = this;
+                            requestData();
+                        }
+                    }
+                },
+                title: {
+                    text: 'BTC/ETH Poloniex Chart'
+                },
+                xAxis: {
+                    type: 'datetime',
+                    tickPixelInterval: 150,
+                    maxZoom: 20 * 1000
+                },
+                yAxis: {
+                    minPadding: 0.2,
+                    maxPadding: 0.2,
+                    title: {
+                        text: 'ETH',
+                        margin: 80
+                    }
+                },
+                tooltip: {
+                    valueDecimals: 8
+                },
+                series: [
+                    {
+                        name: 'Last',
+                        data: []
+                    },
+                    {
+                        name: 'Lowest Ask',
+                        data: []
+                    },
+                    {
+                        name: 'Highest Bid',
+                        data: []
+                    }
+                ]
+            });
+        });
+    </script>
+</body>
+</html>
